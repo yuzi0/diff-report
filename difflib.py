@@ -1512,17 +1512,12 @@ _styles = """
             vertical-align: top;
         }
         
-        td {
-            word-wrap: break-word;
-            overflow-wrap:break-word;
-            white-space: normal;
-        }
-        
         tr:nth-child(even){background-color: #f2f2f2}
         
         table.diff {font-family:Courier; border:medium;}
         .diff_header {background-color:#e0e0e0}
         td.diff_header {text-align:right}
+        th.diff_header {text-align:center}
         .diff_add {background-color:#aaffaa}
         .diff_chg {background-color:#ffff77}
         .diff_sub {background-color:#ffaaaa}"""
@@ -1539,7 +1534,7 @@ _table_template = """
 
 _legend = """
     <table class="diff" summary="">
-        <tr> <th colspan="2"></th> </tr>
+        <P></P>
         <tr> <td> <table border="" summary="Colors">
                       <tr><th> Colors </th> </tr>
                       <tr><td class="diff_add">&nbsp;Added&nbsp;</td></tr>
@@ -1850,6 +1845,10 @@ class HtmlDiff(object):
         # set up iterator to wrap lines that exceed desired width
         if self._wrapcolumn:
             diffs = self._line_wrapper(diffs)
+        
+        # set function name from tolines
+        funcnames = get_func_names(tolines)
+        tolistfunc = ['<td>%s</td>'%fname for fname in funcnames]
 
         # collect up from/to lines and flags into lists (also format the lines)
         fromlist,tolist,flaglist = self._collect_lines(diffs)
@@ -1860,7 +1859,6 @@ class HtmlDiff(object):
 
         s = []
         fmt = '            <tr>%s%s%s</tr>\n'
-        funcName = '<td>tmpFunction</td>'
 
         for i in range(len(flaglist)):
             if flaglist[i] is None:
@@ -1870,14 +1868,15 @@ class HtmlDiff(object):
                     s.append('        </tbody>        \n        <tbody>\n')
             else:
                 if diffonly is False:
-                    s.append( fmt % (fromlist[i], tolist[i], funcName))
+                    s.append( fmt % (fromlist[i], tolist[i], tolistfunc[i]))
                 elif ((fromlist[i].find("\0+") > 0) or (fromlist[i].find("\0-") > 0) or (fromlist[i].find("\0^") > 0)) or \
                      ((tolist[i].find("\0+") > 0) or (tolist[i].find("\0-") > 0) or (tolist[i].find("\0^") > 0)):
-                    s.append( fmt % (fromlist[i], tolist[i], funcName))
+                    s.append( fmt % (fromlist[i], tolist[i], tolistfunc[i]))
         if fromdesc or todesc:
-            header_row = '<thead><tr>%s%s</tr></thead>' % (
+            header_row = '<thead><tr>%s%s%s</tr></thead>' % (
                 '<th colspan="2" class="diff_header">%s</th>' % fromdesc,
-                '<th colspan="2" class="diff_header">%s</th>' % todesc)
+                '<th colspan="2" class="diff_header">%s</th>' % todesc,
+                '<th class="diff_header">function</th>')
         else:
             header_row = ''
 
@@ -1891,8 +1890,6 @@ class HtmlDiff(object):
                      replace('\0^','<span class="diff_chg">'). \
                      replace('\1','</span>'). \
                      replace('\t','&nbsp;')
-
-del re
 
 def restore(delta, which):
     r"""
@@ -1922,6 +1919,38 @@ def restore(delta, which):
     for line in delta:
         if line[:2] in prefixes:
             yield line[2:]
+
+def get_func_names(lines):
+    lineNumber = 0
+    funcLine = 0
+    braceCount = 0
+    funcnames = []
+    funcname = ""
+    notWord = re.compile('[\w]{1,}[ ]{1,}[\w]{1,}[(].{0,}[)]')
+
+    for i in lines:
+        lineNumber = lineNumber + 1
+        val_i = notWord.search(i)
+        
+        for brace in re.finditer('{|}', i):
+            if i[brace.start()] == '{':
+                braceCount = braceCount + 1
+            else:
+                braceCount = braceCount - 1
+        
+        if val_i != None:
+            funcname = re.sub('[\w]{1,}[ ]{1,}|[(].{0,}[)]|[\n]', "",i)
+            funcnames.append(funcname)
+            funcLine = lineNumber
+        elif funcLine == 0:
+            funcnames.append("-")
+        elif braceCount == 0:
+            funcnames.append(funcname)
+            funcLine = 0
+        else:
+            funcnames.append(funcname)
+    
+    return (funcnames)
 
 def _test():
     import doctest, difflib
