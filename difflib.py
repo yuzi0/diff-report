@@ -24,9 +24,10 @@ __all__ = ['get_close_matches', 'ndiff', 'restore', 'SequenceMatcher',
 
 from heapq import nlargest as _nlargest
 from collections import namedtuple as _namedtuple
-from types import GenericAlias
+import types, sys
 
 Match = _namedtuple('Match', 'a b size')
+GenericAlias = type(sys.implementation)
 
 def _calculate_ratio(matches, length):
     if length:
@@ -1500,10 +1501,28 @@ _file_template = """
 </html>"""
 
 _styles = """
+        table {
+            border-collapse: collapse;
+            border-spacing: 0;
+            border: 1px solid #ddd;
+        }
+        
+        th, td {
+            text-align: left;
+            vertical-align: top;
+        }
+        
+        td {
+            word-wrap: break-word;
+            overflow-wrap:break-word;
+            white-space: normal;
+        }
+        
+        tr:nth-child(even){background-color: #f2f2f2}
+        
         table.diff {font-family:Courier; border:medium;}
         .diff_header {background-color:#e0e0e0}
         td.diff_header {text-align:right}
-        .diff_next {background-color:#c0c0c0}
         .diff_add {background-color:#aaffaa}
         .diff_chg {background-color:#ffff77}
         .diff_sub {background-color:#ffaaaa}"""
@@ -1519,20 +1538,14 @@ _table_template = """
     </table>"""
 
 _legend = """
-    <table class="diff" summary="Legends">
-        <tr> <th colspan="2"> Legends </th> </tr>
+    <table class="diff" summary="">
+        <tr> <th colspan="2"></th> </tr>
         <tr> <td> <table border="" summary="Colors">
                       <tr><th> Colors </th> </tr>
                       <tr><td class="diff_add">&nbsp;Added&nbsp;</td></tr>
                       <tr><td class="diff_chg">Changed</td> </tr>
                       <tr><td class="diff_sub">Deleted</td> </tr>
-                  </table></td>
-             <td> <table border="" summary="Links">
-                      <tr><th colspan="2"> Links </th> </tr>
-                      <tr><td>(f)irst change</td> </tr>
-                      <tr><td>(n)ext change</td> </tr>
-                      <tr><td>(t)op</td> </tr>
-                  </table></td> </tr>
+                  </table></td></tr>
     </table>"""
 
 class HtmlDiff(object):
@@ -1570,7 +1583,8 @@ class HtmlDiff(object):
         self._charjunk = charjunk
 
     def make_file(self, fromlines, tolines, fromdesc='', todesc='',
-                  context=False, numlines=5, *, charset='utf-8'):
+                  context=False, numlines=5, *, charset='utf-8',
+                  diffonly=False):
         """Returns HTML file of side by side comparison with change highlights
         Arguments:
         fromlines -- list of "from" lines
@@ -1591,7 +1605,8 @@ class HtmlDiff(object):
             styles=self._styles,
             legend=self._legend,
             table=self.make_table(fromlines, tolines, fromdesc, todesc,
-                                  context=context, numlines=numlines),
+                                  context=context, numlines=numlines,
+                                  diffonly=diffonly),
             charset=charset
         )).encode(charset, 'xmlcharrefreplace').decode(charset)
 
@@ -1800,7 +1815,7 @@ class HtmlDiff(object):
         return fromlist,tolist,flaglist,next_href,next_id
 
     def make_table(self,fromlines,tolines,fromdesc='',todesc='',context=False,
-                   numlines=5):
+                   numlines=5, diffonly=False):
         """Returns HTML table of side by side comparison with change highlights
         Arguments:
         fromlines -- list of "from" lines
@@ -1844,8 +1859,9 @@ class HtmlDiff(object):
             fromlist,tolist,flaglist,context,numlines)
 
         s = []
-        fmt = '            <tr><td class="diff_next"%s>%s</td>%s' + \
-              '<td class="diff_next">%s</td>%s</tr>\n'
+        fmt = '            <tr>%s%s%s</tr>\n'
+        funcName = '<td>tmpFunction</td>'
+
         for i in range(len(flaglist)):
             if flaglist[i] is None:
                 # mdiff yields None on separator lines skip the bogus ones
@@ -1853,13 +1869,14 @@ class HtmlDiff(object):
                 if i > 0:
                     s.append('        </tbody>        \n        <tbody>\n')
             else:
-                s.append( fmt % (next_id[i],next_href[i],fromlist[i],
-                                           next_href[i],tolist[i]))
+                if diffonly is False:
+                    s.append( fmt % (fromlist[i], tolist[i], funcName))
+                elif ((fromlist[i].find("\0+") > 0) or (fromlist[i].find("\0-") > 0) or (fromlist[i].find("\0^") > 0)) or \
+                     ((tolist[i].find("\0+") > 0) or (tolist[i].find("\0-") > 0) or (tolist[i].find("\0^") > 0)):
+                    s.append( fmt % (fromlist[i], tolist[i], funcName))
         if fromdesc or todesc:
-            header_row = '<thead><tr>%s%s%s%s</tr></thead>' % (
-                '<th class="diff_next"><br /></th>',
+            header_row = '<thead><tr>%s%s</tr></thead>' % (
                 '<th colspan="2" class="diff_header">%s</th>' % fromdesc,
-                '<th class="diff_next"><br /></th>',
                 '<th colspan="2" class="diff_header">%s</th>' % todesc)
         else:
             header_row = ''
