@@ -1748,7 +1748,7 @@ class HtmlDiff(object):
         # make space non-breakable so they don't get compressed or line wrapped
         text = text.replace(' ','&nbsp;').rstrip()
 
-        return '<td class="diff_header"%s>%s</td><td nowrap="nowrap">%s</td>' \
+        return '<td class="diff_header"%s>%s</td><td>%s</td>' \
                % (id,linenum,text)
 
     def _make_prefix(self):
@@ -1845,17 +1845,17 @@ class HtmlDiff(object):
         # set up iterator to wrap lines that exceed desired width
         if self._wrapcolumn:
             diffs = self._line_wrapper(diffs)
-        
-        # set function name from tolines
-        funcnames = get_func_names(tolines)
-        tolistfunc = ['<td>%s</td>'%fname for fname in funcnames]
 
         # collect up from/to lines and flags into lists (also format the lines)
         fromlist,tolist,flaglist = self._collect_lines(diffs)
+        
+        # set function name from tolines
+        funcnames = get_func_names(tolist)
+        tolistfunc = ['<td>%s</td>'%fname for fname in funcnames]
 
         # process change flags, generating middle column of next anchors/links
-        fromlist,tolist,flaglist,next_href,next_id = self._convert_flags(
-            fromlist,tolist,flaglist,context,numlines)
+        # fromlist,tolist,flaglist,next_href,next_id = self._convert_flags(
+        #     fromlist,tolist,flaglist,context,numlines)
 
         s = []
         fmt = '            <tr>%s%s%s</tr>\n'
@@ -1926,7 +1926,7 @@ def get_func_names(lines):
     braceCount = 0
     funcnames = []
     funcname = ""
-    notWord = re.compile('[\w]{1,}[ ]{1,}[\w]{1,}[(].{0,}[)]')
+    notWord = re.compile('[\w]{1,}[&nbsp;]{1,}[\w]{1,}[(].{0,}[)]')
 
     for i in lines:
         lineNumber = lineNumber + 1
@@ -1939,7 +1939,8 @@ def get_func_names(lines):
                 braceCount = braceCount - 1
         
         if val_i != None:
-            funcname = re.sub('[\w]{1,}[ ]{1,}|[(].{0,}[)]|[\n]', "",i)
+            funcname = re.search('[&nbsp;]{1,}[\w]{1,}[(]', i)
+            funcname = funcname.group()[6:-1]
             funcnames.append(funcname)
             funcLine = lineNumber
         elif funcLine == 0:
